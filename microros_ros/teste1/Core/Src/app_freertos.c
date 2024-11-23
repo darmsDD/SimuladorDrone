@@ -85,6 +85,13 @@ const osThreadAttr_t microROSTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
   .stack_size = 3000 * 4
 };
+/* Definitions for EscreverSetpoin */
+osThreadId_t EscreverSetpoinHandle;
+const osThreadAttr_t EscreverSetpoin_attributes = {
+  .name = "EscreverSetpoin",
+  .priority = (osPriority_t) osPriorityBelowNormal5,
+  .stack_size = 500 * 4
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -106,6 +113,7 @@ void vImuCallback(const void * msgin);
 /* USER CODE END FunctionPrototypes */
 
 void microROSTaskFunction(void *argument);
+void StartEscreverSetpoint(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -138,6 +146,9 @@ void MX_FREERTOS_Init(void) {
   /* Create the thread(s) */
   /* creation of microROSTask */
   microROSTaskHandle = osThreadNew(microROSTaskFunction, NULL, &microROSTask_attributes);
+
+  /* creation of EscreverSetpoin */
+  EscreverSetpoinHandle = osThreadNew(StartEscreverSetpoint, NULL, &EscreverSetpoin_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -229,7 +240,7 @@ void microROSTaskFunction(void *argument)
     if (RCL_RET_OK != rc_imu) {
 		for(int i=0;i<50;i++){
 			HAL_GPIO_TogglePin(LD2_GPIO_Port , LD2_Pin);
-			osDelay(200);
+			osDelay(500);
 		}
     }
 
@@ -250,11 +261,29 @@ void microROSTaskFunction(void *argument)
 	/* Infinite loop */
 	for(;;)
 	{
-
 	  osDelay(1);
-	  //velocity_msg.data = i;
 	}
   /* USER CODE END microROSTaskFunction */
+}
+
+/* USER CODE BEGIN Header_StartEscreverSetpoint */
+/**
+* @brief Function implementing the EscreverSetpoin thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartEscreverSetpoint */
+void StartEscreverSetpoint(void *argument)
+{
+  /* USER CODE BEGIN StartEscreverSetpoint */
+  /* Infinite loop */
+  for(;;)
+  {
+	  osThreadFlagsWait(0x01, osFlagsWaitAll, osWaitForever);
+	  HAL_GPIO_TogglePin(LD2_GPIO_Port , LD2_Pin);
+	  osDelay(1);
+  }
+  /* USER CODE END StartEscreverSetpoint */
 }
 
 /* Private application code --------------------------------------------------*/
@@ -291,7 +320,6 @@ void vSendActuatorMsg(){
 	{
 		printf("Error publishing velocity (line %d)\n", __LINE__);
 	}
-
 }
 
 void vImuCallback(const void * msgin)
@@ -300,16 +328,8 @@ void vImuCallback(const void * msgin)
 	if (msgin != NULL)
 	{
 
-			// Blink the LED2 (orange) for debugging
-			HAL_GPIO_TogglePin(LD2_GPIO_Port , LD2_Pin);
-
-
-
-
-			//minha_msg = (const sensor_msgs__msg__Imu *)msgin;
-			//imu_msg = *minha_msg;
-			//float a_velocity[] = {500,500,500,500};
-			//vSetActuatorMsg(a_velocity);
+		// Indica que houve leitura da IMU para a tarefa escrever setpoint
+		osThreadFlagsSet(EscreverSetpoinHandle, 0x01);
 	}
 
 }
