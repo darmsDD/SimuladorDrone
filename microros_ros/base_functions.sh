@@ -77,10 +77,12 @@ FindDir() {
     fi
 }
 
+# Responsável por criar uma nova sessão do TMUX
 TmuxCreateSession(){
     tmux new-session -d -s $session_name  
 }
 
+# Responsável por estilizar a sessão do TMUX, renomeando a janela e criando 4 painéis de mesmo tamanho.
 TmuxStyleSession(){
     tmux rename-window -t $session_name:0 $window_name
     tmux split-window -h
@@ -90,6 +92,11 @@ TmuxStyleSession(){
     tmux select-layout tiled
 }
 
+# Responsável por enviar os comandos corretos para cada painel.
+# Painel 1: Roda o agente do microROS.
+# Painel 2: Mostra as mensagens que o simulador está enviando para o micro-ros.
+# Painel 3: Mostra as mensagens que o microROS está enviando para o simulador.
+# Painel 4: Executa o comando de brigde do ROS. Convertendo as mensagens do tipo gazebo para o tipo ROS.
 TmuxStartPaneCommands(){
     tmux send-keys -t $full_path.0 "MicrosRosAgentRun" Enter
     read -p "Aperte enter depois de rodar o código no microcontrolador ou aperte o botão de reset, caso o código já esteja na placa."
@@ -99,8 +106,42 @@ TmuxStartPaneCommands(){
     tmux attach -t $session_name
 }
 
+# Responsável por mata a sessão do TMUX.
 TmuxKillSession(){
     tmux kill-session -t $session_name
 }
+
+# Responsável por finalizar o programa de maneira correta no caso de um CTRL+C.
+# 1- Remove a pasta onde foi clonado o repositório e feito a build.
+# 2- Termina a sessão do TMUX.
+# 3- Mata os processos filhos. Obs: O gazebo é executado em segundo plano e ele cria uma árvore de processos, então para terminá-lo corretamente, 
+# foi necessária uma função que matásse todos os processos descendentes. 
+terminateProgram(){
+    purple_word "Terminando o programa."
+    normal_word "Removendo a pasta $folder_name."
+    AuthorizationInput RmCreatedDir
+    normal_word "Terminando a sessão do tmux."
+    AuthorizationInput TmuxKillSession
+    kill_process_tree $$
+    wait
+    exit
+}
+
+# Responsável por eliminar todos os descendentes de um processo pai.
+kill_process_tree() {
+    local parent_pid=$1
+    # Find all child processes
+    local child_pids=$(pgrep -P $parent_pid)
+    for child_pid in $child_pids; do
+        # Recursively kill child processes
+        kill_process_tree $child_pid
+    done
+    # Kill the parent process if it is not the original one
+    if [ $parent_pid -ne $$ ]; then
+      kill -SIGTERM $parent_pid 2>/dev/null
+    fi
+}
+
+
 
 export -f ExecuteFunctionAndCheckError

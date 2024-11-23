@@ -12,8 +12,12 @@
 # Faz a build do pacote e instala dependências 
 InitialSetup() {
     rosdep install --from-path src --ignore-src -y
-
-    colcon build
+    if [ -d "src" ] && [ -d "build" ] && [ -d "install" ] && [ -d "log" ]; then
+        purple_word "Build já realizada anteriormente. Pulando esta etapa."
+    else
+        colcon build
+        colcon test
+    fi
     source install/local_setup.bash
 }
 
@@ -37,43 +41,41 @@ MicrosRosAgentRun(){
 }
 
 
-# Função utilizada para observar no terminal as mensagens sendo enviadas pelo micro-ros, isto é, o Target (Microcontrolador).
+# Função utilizada para observar no terminal as mensagens sendo enviadas pelo micro-ros, isto é, o Target (Microcontrolador) para o o Host (PC).
 RosSubscriber(){
-    #source /opt/ros/$ROS_DISTRO/setup.bash
     export ROS_DOMAIN_ID=$my_ros_domain_id
-    # Subscribe to micro-ROS joint_state topic
     ros2 topic echo $topic_velocity_name
     while [[ $? -ne 0 ]]; do
-        #red_word "Falhou na inscrição. Esperarei 5 segundos e tentarei novamente."
-        #red_word "Tópico ainda não está disponível, rode o código do microcontrolador. Esperarei 5 segundos e tentarei novamente.\033[0m"
+        red_word "Tópico ainda não está disponível, rode o código do microcontrolador. Esperarei 5 segundos e tentarei novamente."
         sleep 5
         ros2 topic echo $topic_velocity_name
     done
 
 }
 
-# Função utilizada para enviar mensagens do ROS para o micro-ros, isto é, do Host (computador) para o Target (Microcontrolador)
+# Função utilizada para observar no terminal as mensagens sendo enviadas pelo gazebo, isto é, o Host (PC) para o Target (Microcontrolador).
 RosPublisher(){
-    #source /opt/ros/$ROS_DISTRO/setup.bash
-    # Set ROS_DOMAIN_ID with the same value set in micro-ROS (line 239, app_frertos.c)
     export ROS_DOMAIN_ID=$my_ros_domain_id
-    # Publish to micro-ROS /cmd_vel geometry_msgs/msg/Twist topic
     ros2 topic echo $topic_imu_name
-    #ros2 topic  --rate 1 /cmd_vel geometry_msgs/msg/Twist '{linear: {x: 2.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}'
+    while [[ $? -ne 0 ]]; do
+        red_word "Tópico ainda não está disponível, rode o código do microcontrolador. Esperarei 5 segundos e tentarei novamente."
+        sleep 5
+        ros2 topic echo $topic_imu_name
+    done
 }
 
-
+# Função utilizada para transformar as mensagens to tipo ros para gazebo e gazebo para ros. Permitindo a comunicação entre os tópicos.
 RosBridge(){
-    set -x
     export ROS_DOMAIN_ID=$my_ros_domain_id
     bridge_actuator=$topic_velocity_name@$actuator_ros_message_type@$actuator_gazebo_msg_type 
     bridge_imu=$topic_imu_name@$imu_ros_message_type@$imu_gazebo_msg_type
     ros2 run ros_gz_bridge parameter_bridge $bridge_actuator $bridge_imu
-    set +x
 }
 
+# Função utilizada para iniciar a simulação do gazebo em segundo plano.
+# -r: Serve para dar autoplay na simulação.
 StartGazebo(){
-    gz sim ../../models/quadcopter.sdf &
+    gz sim ../../models/quadcopter.sdf -r &
 }
 
 

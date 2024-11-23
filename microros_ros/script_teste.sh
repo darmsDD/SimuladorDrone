@@ -15,32 +15,6 @@ export session_name=micro_ros
 export window_name=window1
 export full_path="$session_name:$window_name"
 
-terminateProgram(){
-    purple_word "Terminando o programa."
-    normal_word "Removendo a pasta $folder_name."
-    AuthorizationInput RmCreatedDir
-    normal_word "Terminando a sessão do tmux."
-    AuthorizationInput TmuxKillSession
-    kill_process_tree $$
-    wait
-    exit
-}
-
-kill_process_tree() {
-    local parent_pid=$1
-    # Find all child processes
-    local child_pids=$(pgrep -P $parent_pid)
-    for child_pid in $child_pids; do
-        # Recursively kill child processes
-        kill_process_tree $child_pid
-    done
-    # Kill the parent process if it is not the original one
-    if [ $parent_pid -ne $$ ]; then
-      kill -SIGTERM $parent_pid 2>/dev/null
-    fi
-}
-
-
 . ./style.sh
 init_style
 . ./base_functions.sh

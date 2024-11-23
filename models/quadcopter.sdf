@@ -1,3 +1,9 @@
+<!-- Este modelo é um dos modelos de exemplos disponíveis pelo gazebo. -->
+<!-- O principal foi mantido, com apenas algumas alterações. Como a adição da IMU. -->
+<!-- Para modificar a taxa de atualização da IMU, procure por <update_rate>1</update_rate> -->
+<!-- 1 quer dizer 1 vez por segundo. -->
+
+
 <sdf version='1.10'>
   <world name='quadcopter'>
     <physics name='1ms' type='ignored'>
