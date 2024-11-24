@@ -139,21 +139,11 @@ void MX_FREERTOS_Init(void) {
 void microROSTaskFunction(void *argument)
 {
   /* USER CODE BEGIN microROSTaskFunction */
-	vMicrorosConfiguration();
-	vCreateNode();
-	 //time sync
-	if( rmw_uros_sync_session(1000) != RMW_RET_OK)
-		  printf("Error on time sync (line %d)\n", __LINE__);
-
-	vCreatePublisher();
-	vCreateSubscriber();
-	vCreateExecutor();
-	// Run executor
-	rclc_executor_spin(&executor);
 	/* Infinite loop */
 	for(;;)
 	{
-	  osDelay(1);
+		vMyMicroros();
+		osDelay(1000);
 	}
   /* USER CODE END microROSTaskFunction */
 }

@@ -46,15 +46,21 @@ rclc_support_t support;
 rcl_node_t node;
 rclc_executor_t executor;
 
+
+const int iNumberOfTries = 1;
+rcl_ret_t i32PubMessageState = RCL_RET_OK;
+
 // Minhas funções.
 void vSetActuatorMsg(float *);
 void vSendActuatorMsg();
 void vImuCallback(const void * msgin);
-void vMicrorosConfiguration();
-void vCreateNode();
-void vCreatePublisher();
-void vCreateSubscriber();
-void vCreateExecutor();
+rcl_ret_t i32MicrorosConfiguration();
+rcl_ret_t i32CreateNode();
+rcl_ret_t i32CreatePublisher();
+rcl_ret_t i32CreateSubscriber();
+rcl_ret_t i32CreateExecutor();
+void vFastBlinkOnError();
+void vMyMicroros();
 
 
 // Funções nativas.
@@ -94,7 +100,8 @@ void vSetActuatorMsg(float *fpVelocity){
 }
 
 void vSendActuatorMsg(){
-	rcl_ret_t ret = rcl_publish(&velocity_pub, &velocity_msg, NULL);
+	i32PubMessageState = rcl_publish(&velocity_pub, &velocity_msg, NULL);
+
 }
 
 void vImuCallback(const void * msgin)
@@ -102,14 +109,41 @@ void vImuCallback(const void * msgin)
 	//const sensor_msgs__msg__Imu * minha_msg;
 	if (msgin != NULL)
 	{
-
 		// Indica que houve leitura da IMU para a tarefa escrever setpoint
 		osThreadFlagsSet(EscreverSetpoinHandle, 0x01);
 	}
 
 }
 
-void vMicrorosConfiguration(){
+
+void vMyMicroros(){
+	if(i32MicrorosConfiguration()==RCL_RET_OK && i32CreateNode()==RCL_RET_OK && rmw_uros_sync_session(1000) == RMW_RET_OK &&
+			i32CreatePublisher()==RCL_RET_OK && i32CreateSubscriber()==RCL_RET_OK && i32CreateExecutor()==RCL_RET_OK){
+		// Run executor
+		rcl_ret_t ret = rclc_executor_spin_some(&executor,500*(1000*1000));
+		while(RCL_RET_OK==ret){
+
+			if(i32PubMessageState!=RCL_RET_OK){
+				break;
+			}
+			ret = rclc_executor_spin_some(&executor,500*(1000*1000));
+		}
+
+	}
+	rcl_ret_t rc;
+	rc = rclc_executor_fini(&executor);
+	rc += rcl_publisher_fini(&velocity_pub, &node);
+	rc += rcl_timer_fini(&timer);
+	rc += rcl_subscription_fini(&imu_sub, &node);
+	rc += rcl_node_fini(&node);
+	rc += rclc_support_fini(&support);
+	i32PubMessageState=RCL_RET_OK;
+	vFastBlinkOnError();
+	return;
+}
+
+
+rcl_ret_t i32MicrorosConfiguration(){
 	rmw_uros_set_custom_transport(
 	true,
 	(void *) &hlpuart1,
@@ -131,65 +165,122 @@ void vMicrorosConfiguration(){
 	allocator = rcl_get_default_allocator();
 	// Initialize and modify options (Set DOMAIN ID to 25)
 	rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
-	rcl_init_options_init(&init_options, allocator);
-	rcl_init_options_set_domain_id(&init_options, 25);
+
+	int i=0;
+	rcl_ret_t ret;
+	ret = rcl_init_options_init(&init_options, allocator);
+	while (ret != RCL_RET_OK && i<iNumberOfTries){
+		ret = rcl_init_options_init(&init_options, allocator);
+		i++;
+	}
+	if(ret != RCL_RET_OK){return ret;}
+
+
+	i=0;
+	ret = rcl_init_options_set_domain_id(&init_options, 25);
+	while (ret != RCL_RET_OK && i<iNumberOfTries){
+		ret = rcl_init_options_set_domain_id(&init_options, 25);
+		i++;
+	}
+	if(ret != RCL_RET_OK){return ret;}
+
 	// Initialize rclc support object with custom options
-	rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator);
+	i=0;
+	ret = rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator);
+	while (ret != RCL_RET_OK && i<iNumberOfTries){
+		ret = rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator);
+		i++;
+	};
+	return ret;
 }
 
-void vCreateNode(){
+rcl_ret_t i32CreateNode(){
 	// Create node object
 
 	const char * node_name = "test_node";
 	// Node namespace (Can remain empty "")
 	const char * namespace = "";
+	int i=0;
 	// Init node with configured support object
 	rcl_ret_t rc2 = rclc_node_init_default(&node, node_name, namespace, &support);
-	while (rc2 != RCL_RET_OK) {
-		for(int i=0;i<10;i++){
-			HAL_GPIO_TogglePin(LD2_GPIO_Port , LD2_Pin);
-			osDelay(500);
-		}
+	while(rc2 != RCL_RET_OK && i<iNumberOfTries){
 		rc2 = rclc_node_init_default(&node, node_name, namespace, &support);
+		i++;
 	}
+	return rc2;
 }
 
-void vCreatePublisher(){
-	rclc_publisher_init_default(
+rcl_ret_t i32CreatePublisher(){
+	rcl_ret_t ret = rclc_publisher_init_default(
 			&velocity_pub,
 			&node,
 			ROSIDL_GET_MSG_TYPE_SUPPORT(actuator_msgs,msg,Actuators),
-			"/X3/gazebo/command/motor_speed");
+			"/X3/gazebo/command/motor_speed"
+		);
+	int i=0;
+	while (ret != RCL_RET_OK && i<iNumberOfTries){
+		ret = rclc_publisher_init_default(
+					&velocity_pub,
+					&node,
+					ROSIDL_GET_MSG_TYPE_SUPPORT(actuator_msgs,msg,Actuators),
+					"/X3/gazebo/command/motor_speed"
+			   );
+		i++;
+	};
+
 	 float a_velocity[] = {500,500,500,500};
 	 vSetActuatorMsg(a_velocity);
+	 return ret;
 }
-void vCreateSubscriber(){
+
+rcl_ret_t i32CreateSubscriber(){
 	 const char * imu_topic_name = "/drone/imu";
 	// Get message type support
 	const rosidl_message_type_support_t * imu_type_support =
 	  ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs,msg,Imu);
 	// Initialize a reliable subscriber
 	rcl_ret_t rc_imu = rclc_subscription_init_default(
-	  &imu_sub, &node,
-	  imu_type_support, imu_topic_name);
-	if (RCL_RET_OK != rc_imu) {
-		for(int i=0;i<50;i++){
-			HAL_GPIO_TogglePin(LD2_GPIO_Port , LD2_Pin);
-			osDelay(500);
-		}
+			&imu_sub, &node,
+			imu_type_support, imu_topic_name
+		);
+	int i=0;
+	while(RCL_RET_OK != rc_imu && i<iNumberOfTries){
+		rc_imu = rclc_subscription_init_default(
+			&imu_sub, &node,
+			imu_type_support, imu_topic_name
+		);
+		i++;
+
 	}
+	return rc_imu;
 }
-void vCreateExecutor(){
+
+rcl_ret_t i32CreateExecutor(){
 	 // Create a timer
 	const unsigned int timer_timeout = 1000;
-	rclc_timer_init_default2(&timer, &support, RCL_MS_TO_NS(timer_timeout), vSendActuatorMsg,true);
+	rcl_ret_t ret;
+	ret = rclc_timer_init_default2(&timer, &support, RCL_MS_TO_NS(timer_timeout), vSendActuatorMsg,true);
+	if(ret != RCL_RET_OK){ return ret;}
+
 	// Create executor
-	rclc_executor_init(&executor, &support.context, 2, &allocator);
-	rclc_executor_add_subscription(&executor, &imu_sub, &imu_msg,
-	  &vImuCallback, ON_NEW_DATA); // ON_NEW_DATA does not work properly
-	rclc_executor_add_timer(&executor, &timer);
+	ret = rclc_executor_init(&executor, &support.context, 2, &allocator);
+	if(ret != RCL_RET_OK){ return ret;}
+
+	ret = rclc_executor_add_subscription(&executor, &imu_sub, &imu_msg,
+			  &vImuCallback, ON_NEW_DATA); // ON_NEW_DATA does not work properly
+	if(ret != RCL_RET_OK){ return ret;}
+
+
+	ret = rclc_executor_add_timer(&executor, &timer);
+
+	return ret;
 }
 
-
+void vFastBlinkOnError(){
+	for(int i=0;i<50;i++){
+				HAL_GPIO_TogglePin(LD2_GPIO_Port , LD2_Pin);
+				osDelay(100);
+	}
+}
 
 #endif /* INC_MY_BASE_FUNCTIONS_H_ */
