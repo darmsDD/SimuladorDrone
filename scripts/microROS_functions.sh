@@ -40,28 +40,27 @@ MicrosRosAgentRun(){
     ros2 run micro_ros_agent micro_ros_agent serial --dev $(ls /dev/serial/by-id/*) -b 115200
 }
 
-
-# Função utilizada para observar no terminal as mensagens sendo enviadas pelo micro-ros, isto é, o Target (Microcontrolador) para o o Host (PC).
-RosSubscriber(){
+# Função utilizada para checar se o tópico ROS está disponível, e se não estiver, avisar o usuário o que ele pode fazer.
+IsTopicAvaible(){
     export ROS_DOMAIN_ID=$my_ros_domain_id
-    ros2 topic echo $topic_velocity_name
+    local topic_name=$1
+    purple_word "Rode o código no microcontrolador ou aperte o botão de reset, caso o código já esteja na placa."
+    ros2 topic echo $topic_name
     while [[ $? -ne 0 ]]; do
         red_word "Tópico ainda não está disponível, rode o código do microcontrolador. Esperarei 5 segundos e tentarei novamente."
         sleep 5
-        ros2 topic echo $topic_velocity_name
+        ros2 topic echo $topic_name
     done
+}
 
+# Função utilizada para observar no terminal as mensagens sendo enviadas pelo micro-ros, isto é, o Target (Microcontrolador) para o o Host (PC).
+RosSubscriber(){
+    IsTopicAvaible $topic_velocity_name
 }
 
 # Função utilizada para observar no terminal as mensagens sendo enviadas pelo gazebo, isto é, o Host (PC) para o Target (Microcontrolador).
 RosPublisher(){
-    export ROS_DOMAIN_ID=$my_ros_domain_id
-    ros2 topic echo $topic_imu_name
-    while [[ $? -ne 0 ]]; do
-        red_word "Tópico ainda não está disponível, rode o código do microcontrolador. Esperarei 5 segundos e tentarei novamente."
-        sleep 5
-        ros2 topic echo $topic_imu_name
-    done
+    IsTopicAvaible $topic_imu_name
 }
 
 # Função utilizada para transformar as mensagens to tipo ros para gazebo e gazebo para ros. Permitindo a comunicação entre os tópicos.
@@ -69,7 +68,7 @@ RosBridge(){
     export ROS_DOMAIN_ID=$my_ros_domain_id
     bridge_actuator=$topic_velocity_name@$actuator_ros_message_type@$actuator_gazebo_msg_type 
     bridge_imu=$topic_imu_name@$imu_ros_message_type@$imu_gazebo_msg_type
-    ros2 run ros_gz_bridge parameter_bridge $bridge_actuator $bridge_imu
+    ros2 run ros_gz_bridge parameter_bridge $bridge_actuator $bridge_imu &
 }
 
 # Função utilizada para iniciar a simulação do gazebo em segundo plano.

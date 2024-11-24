@@ -3,6 +3,7 @@
 
 set -a
 export folder_name=banana
+export stm_workspace_name=microros_ros
 export my_ros_domain_id=25
 export clone_command="git clone -b $ROS_DISTRO https://github.com/micro-ROS/micro_ros_setup.git src/micro_ros_setup"
 export topic_velocity_name="/X3/gazebo/command/motor_speed"
@@ -14,6 +15,7 @@ export topic_imu_name="drone/imu"
 export session_name=micro_ros
 export window_name=window1
 export full_path="$session_name:$window_name"
+
 
 . ./style.sh
 init_style
